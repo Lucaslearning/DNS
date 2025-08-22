@@ -28,6 +28,9 @@ import {
   ExternalLink,
   AlertCircle,
   AlertTriangle,
+  Search,
+  LogOut,
+  User,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -63,6 +66,11 @@ const validateClient = (client: Partial<Client>): string[] => {
 }
 
 export default function DNSManagementDashboard() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loginData, setLoginData] = useState({ username: "", password: "" })
+  const [loginError, setLoginError] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
+
   const [clients, setClients] = useState<Client[]>([
     {
       id: "1",
@@ -89,6 +97,33 @@ export default function DNSManagementDashboard() {
 
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+
+  const handleLogin = useCallback(() => {
+    if (loginData.username === "admin" && loginData.password === "livti2024") {
+      setIsAuthenticated(true)
+      setLoginError("")
+      setLoginData({ username: "", password: "" })
+    } else {
+      setLoginError("Usuário ou senha incorretos")
+    }
+  }, [loginData])
+
+  const handleLogout = useCallback(() => {
+    setIsAuthenticated(false)
+    setSearchTerm("")
+  }, [])
+
+  const filteredClients = useMemo(() => {
+    if (!searchTerm.trim()) return clients
+
+    const term = searchTerm.toLowerCase()
+    return clients.filter(
+      (client) =>
+        client.name.toLowerCase().includes(term) ||
+        client.ddnsLink.toLowerCase().includes(term) ||
+        client.equipment.toLowerCase().includes(term),
+    )
+  }, [clients, searchTerm])
 
   const addClient = useCallback(() => {
     const errors = validateClient(newClient)
@@ -182,16 +217,16 @@ export default function DNSManagementDashboard() {
 
   const stats = useMemo(
     () => ({
-      totalClients: clients.length,
-      uniqueEquipments: new Set(clients.map((c) => c.equipment)).size,
+      totalClients: filteredClients.length,
+      uniqueEquipments: new Set(filteredClients.map((c) => c.equipment)).size,
       equipmentDistribution: ["fortigate", "mikrotik", "pfsense", "unifi"]
         .map((equipment) => ({
           name: equipment,
-          count: clients.filter((c) => c.equipment === equipment).length,
+          count: filteredClients.filter((c) => c.equipment === equipment).length,
         }))
         .filter((item) => item.count > 0),
     }),
-    [clients],
+    [filteredClients],
   )
 
   const handleCloseDialog = useCallback(() => {
@@ -204,22 +239,110 @@ export default function DNSManagementDashboard() {
     setEditingClient(null)
   }, [])
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-400 via-orange-500 to-orange-600 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-2xl bg-white">
+          <CardHeader className="text-center pb-6">
+            <div className="flex items-center justify-center w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full mx-auto mb-4 shadow-lg">
+              <Globe className="h-10 w-10 text-white" />
+            </div>
+            <CardTitle className="text-3xl font-heading font-bold text-orange-800">LIVTI DNS</CardTitle>
+            <p className="text-orange-600 font-medium">Acesso Administrativo</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {loginError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{loginError}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-sm font-heading font-semibold text-slate-700">
+                  Usuário
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Digite seu usuário"
+                    value={loginData.username}
+                    onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
+                    className="pl-10 h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
+                    onKeyPress={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-heading font-semibold text-slate-700">
+                  Senha
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Digite sua senha"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                  className="h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
+                  onKeyPress={(e) => e.key === "Enter" && handleLogin()}
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={handleLogin}
+              className="w-full h-12 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 font-heading font-semibold text-lg"
+            >
+              Entrar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-400 via-orange-500 to-orange-600">
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-xl shadow-lg border border-white/30">
-              <Globe className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-xl shadow-lg border border-white/30">
+                <Globe className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl sm:text-5xl font-heading font-bold text-white drop-shadow-2xl leading-tight tracking-tight">
+                  LIVTI DNS
+                </h1>
+                <p className="text-orange-100 font-medium text-base sm:text-lg mt-1 drop-shadow-lg">
+                  Gerenciador de Links DDNS
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl sm:text-5xl font-heading font-bold text-white drop-shadow-2xl leading-tight tracking-tight">
-                LIVTI DNS
-              </h1>
-              <p className="text-orange-100 font-medium text-base sm:text-lg mt-1 drop-shadow-lg">
-                Gerenciador de Links DDNS
-              </p>
-            </div>
+
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
+            >
+              <LogOut className="h-4 w-4" />
+              Sair
+            </Button>
+          </div>
+
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-orange-600" />
+            <Input
+              type="text"
+              placeholder="Pesquisar clientes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-12 bg-white/90 backdrop-blur-sm border-white/30 focus:border-orange-300 focus:ring-orange-300 placeholder:text-orange-600/70 font-medium"
+            />
           </div>
         </div>
 
@@ -283,7 +406,11 @@ export default function DNSManagementDashboard() {
                 <CardTitle className="text-2xl sm:text-3xl font-heading font-bold text-orange-800">
                   Clientes DDNS
                 </CardTitle>
-                <p className="text-orange-600 font-medium mt-1">Gerencie seus links de acesso</p>
+                <p className="text-orange-600 font-medium mt-1">
+                  {searchTerm
+                    ? `${filteredClients.length} resultado(s) encontrado(s)`
+                    : "Gerencie seus links de acesso"}
+                </p>
               </div>
               <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
                 <DialogTrigger asChild>
@@ -404,7 +531,7 @@ export default function DNSManagementDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map((client) => (
+                  {filteredClients.map((client) => (
                     <TableRow key={client.id} className="hover:bg-orange-50/70 transition-colors">
                       <TableCell className="font-heading font-semibold py-4 sm:py-6 text-slate-800 text-sm sm:text-base">
                         {client.name}
@@ -453,6 +580,25 @@ export default function DNSManagementDashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {filteredClients.length === 0 && clients.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-16 sm:py-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-orange-100 to-orange-200 rounded-full">
+                            <Search className="h-8 w-8 sm:h-10 sm:w-10 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="font-heading font-bold text-slate-800 text-lg sm:text-xl">
+                              Nenhum resultado encontrado
+                            </p>
+                            <p className="text-sm sm:text-base text-slate-500 mt-2">
+                              Tente pesquisar com outros termos
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {clients.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-16 sm:py-20">
@@ -508,7 +654,7 @@ export default function DNSManagementDashboard() {
                     id="edit-name"
                     value={editingClient.name}
                     onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
-                    className="h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500 font-medium"
+                    className="h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
                     disabled={isLoading}
                   />
                 </div>
@@ -520,7 +666,7 @@ export default function DNSManagementDashboard() {
                     id="edit-ddns"
                     value={editingClient.ddnsLink}
                     onChange={(e) => setEditingClient({ ...editingClient, ddnsLink: e.target.value })}
-                    className="h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500 font-medium"
+                    className="h-12 border-slate-200 focus:border-orange-500 focus:ring-orange-500"
                     disabled={isLoading}
                   />
                 </div>
